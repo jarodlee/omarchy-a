@@ -2,6 +2,10 @@
 
 ## GitHub Actions
 
+For a manual test run without building images, dispatch **Build Omarchy A**
+with **checks_only** enabled. This runs both Python test jobs and skips image
+and release artifact production, including on a newly initialized fork.
+
 `.github/workflows/build.yml` runs unit tests on pull requests and `main`. Version tags (`v*`) and manual dispatches additionally generate the loader artwork on macOS, build m1n1 on Linux ARM64, and the signed Arch Linux ARM userspace on a native ARM64 worker using the same pinned Arch job image and `install-toolchain` recipes as local builds. Source packages build as an unprivileged user; rootfs package assembly runs as root in the disposable job. No nested Podman is used. Shared recipe path variables select actual CI paths instead of container mounts. Native execution is not a security or network sandbox.
 
 `ci/dependencies` checks out orchard's `main` (or `ORCHARD_REF`) and verifies the compiled component bundle of a published orchard release. Select the release tag of the components during manual dispatch; tag builds use the explicit default in the workflow. The release receipt records the exact orchard commit that built it.

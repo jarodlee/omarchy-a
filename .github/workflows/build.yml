@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      checks_only:
+        description: Run tests without building images or release artifacts
+        type: boolean
+        required: false
+        default: false
       hardware_tag:
         description: Published orchard release supplying the compiled components
         required: true
@@ -53,7 +58,7 @@ jobs:
       - run: .venv/bin/python -m unittest discover -s tests -v
   # Pongo is not built here: releases ship hardware's one Pongo (quiet/pongo.bin).
   artwork:
-    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    if: inputs.checks_only != true && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
     needs: test
     runs-on: macos-15
     timeout-minutes: 30
@@ -140,7 +145,7 @@ jobs:
           if-no-files-found: error
           retention-days: 2
   userspace:
-    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    if: inputs.checks_only != true && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
     needs: test
     runs-on: ubuntu-24.04-arm
     container: docker.io/arch4edu/archlinuxarm@sha256:1db43d1af9917db5fd34af3dab64e2b229a21240e81bb765e3d2d3c34739d587
