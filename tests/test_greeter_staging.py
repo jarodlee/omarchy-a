@@ -60,6 +60,20 @@ class GreeterStagingTests(unittest.TestCase):
             self.assertFalse((target / 'home/tablet/.bash_profile').exists())
             self.assertTrue((target / 'usr/local/libexec/arch-ipad-rotate-output').stat().st_mode & 0o111)
             self.assertTrue((target / 'usr/local/libexec/arch-ipad-touch-output').stat().st_mode & 0o111)
+            # Chinese fonts/input/language must be ready at the first login,
+            # and be bound to the same payload manifest as the desktop.
+            import json
+            manifest = json.loads((target / 'arch-ipad-ui-manifest.json').read_text())
+            for relative in (
+                'etc/locale.conf',
+                'home/tablet/.config/fcitx5/profile',
+                'home/tablet/.config/omarchy/rotation-lock',
+                'home/tablet/.config/labwc/environment',
+                'home/tablet/.local/share/omarchy-ipad/default/i18n/zh-CN/shell.json',
+                'home/tablet/.local/share/omarchy-ipad/default/i18n/zh-CN/menu.json',
+            ):
+                self.assertEqual(manifest[relative], hashlib.sha256((target / relative).read_bytes()).hexdigest())
+            self.assertTrue((target / 'usr/local/bin/omarchy-display-orientation').is_symlink())
 
 
 if __name__ == '__main__':

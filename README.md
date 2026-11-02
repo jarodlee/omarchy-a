@@ -1,4 +1,6 @@
-# Omarchy A
+# Omarchy A · 中文默认配置
+
+本 fork 默认提供简体中文界面、Fcitx5 拼音输入、中文字体，以及经 iPad 6 实测的横屏原生触摸配置。详见[中文安装与使用指南](docs/zh-CN/README.md)和[本次安装、汉化与排障记录](docs/zh-CN/operations.md)。新默认配置会进入从本仓库构建的镜像；下方上游发布的安装器仍安装上游镜像。
 
 An experimental, [Omarchy](https://omarchy.org/)-inspired desktop for Apple A-series devices. Built on Arch Linux ARM, with Omarchy's look and feel reworked for touch.
 

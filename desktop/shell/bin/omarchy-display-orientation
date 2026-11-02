@@ -1,0 +1,23 @@
+#!/bin/bash
+# Choose a persistent orientation; auto resumes the existing sensor watcher.
+set -euo pipefail
+config=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy
+case ${1:-} in
+  auto)
+    rm -f -- "$config/rotation-lock" "$config/output-transform"
+    printf '已启用自动旋转；转动 iPad 后生效。\n'
+    exit 0 ;;
+  portrait) transform=normal ;;
+  landscape) transform=90 ;;
+  *) printf 'Usage: omarchy-display-orientation portrait|landscape|auto\n' >&2; exit 2 ;;
+esac
+state=$(wlr-randr)
+outputs=$(awk '/^[^[:space:]]/ {print $1}' <<< "$state")
+[[ -n $outputs && $outputs != *$'\n'* ]] || {
+  echo 'Expected one display; saved orientation unchanged' >&2; exit 1;
+}
+wlr-randr --output "$outputs" --transform "$transform"
+mkdir -p "$config"
+printf '%s\n' "$transform" > "$config/output-transform"
+: > "$config/rotation-lock"
+printf '屏幕方向已保存。\n'

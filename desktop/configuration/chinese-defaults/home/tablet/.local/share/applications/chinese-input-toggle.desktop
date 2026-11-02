@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=切换中英文输入
+Name[en]=Toggle Chinese Input
+Exec=fcitx5-remote -t
+Icon=input-keyboard
+Categories=Utility;
+Terminal=false

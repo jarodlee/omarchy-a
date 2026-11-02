@@ -8,7 +8,11 @@
 # Turn the panel with the device (iio-sensor-proxy); a no-op without an accelerometer.
 /usr/local/libexec/arch-ipad-rotate-output > "$XDG_RUNTIME_DIR/arch-ipad-rotation.log" 2>&1 &
 # Let user services launched after the compositor see its actual Wayland socket.
-systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE > "$XDG_RUNTIME_DIR/arch-ipad-user-env.log" 2>&1
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE LANG LANGUAGE XMODIFIERS GTK_IM_MODULE QT_IM_MODULE > "$XDG_RUNTIME_DIR/arch-ipad-user-env.log" 2>&1
+# Use the shared Wayland session and start once; -d is fcitx5's daemon flag.
+if command -v fcitx5 >/dev/null && ! pgrep -u "$UID" -x fcitx5 >/dev/null; then
+  fcitx5 -d > "$XDG_RUNTIME_DIR/fcitx5.log" 2>&1
+fi
 # Keep the theme-coloured keyboard resident but hidden until the user taps Show.
 export OMARCHY_PATH=/home/tablet/.local/share/omarchy-ipad
 printf '0\n' > "$XDG_RUNTIME_DIR/omarchy-keyboard-visible"
