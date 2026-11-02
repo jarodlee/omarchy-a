@@ -4,6 +4,8 @@
 # XDG_CONFIG_DIRS: one <touch> entry per touchscreen, named, because named
 # entries take precedence over the default one in ~/.config/labwc/rc.xml.
 # The panel's DRM connector name (card0-NAME) is its wlroots output name.
+# J71b with wlroots 0.20.2 was checked in portrait and landscape using native
+# touch. Keep identity calibration: adding a second rotation misplaces taps.
 set -euo pipefail
 out=$1
 sys=${SYSFS_ROOT:-/sys}

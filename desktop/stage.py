@@ -109,6 +109,9 @@ def main():
     }
     for src, dst in mapping.items():
         copy(src, dst)
+    # The Chinese edition's first-login defaults are part of the payload and
+    # its manifest, rather than an online post-install step.
+    shutil.copytree(CONFIG / "chinese-defaults", target, dirs_exist_ok=True)
     # Branding is static; kernel, memory and CPU information use live probes.
     assert "VM prototype" not in (config / "fastfetch/config.jsonc").read_text()
     # Offer Suspend only when the kernel-side charger PM contract is ready.

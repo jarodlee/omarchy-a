@@ -1,0 +1,130 @@
+# iPad 6 安装、汉化与触摸排障记录
+
+记录日期：2026-11-01 至 2026-11-02。目标是把一次成功安装中可复用的做法固化为中文默认值，同时保留故障处理过程和验证边界。设备身份标识、IP 分配记录、凭据、固件和原始设备日志不属于公开记录。
+
+## 1. 方案和设备
+
+实测设备是 iPad 6 Wi-Fi，型号 `iPad7,5`，板型 J71b，128 GB，原系统 iPadOS 17.7.10。安装的是 Omarchy A v0.2.0，而非把标准 PC Omarchy ISO 写入 iPad，也不是 LinuxRunner 的应用内 Linux。
+
+电脑通过 Lightning 数据线连接。Omarchy A 安装后保留 iPadOS；Linux 冷启动仍依靠电脑和 Orchard。用户最终选择将较多空间留给 Linux；这一偏好没有被编码成自动分区默认值。
+
+## 2. DFU 和 Resize APFS
+
+- “连接电脑”的画面表示恢复模式，不能把它当成 DFU 成功。
+- USB-C 转 Lightning 线进入 DFU 不可靠，换成 USB-A 转 Lightning 后继续。
+- 进入 DFU 后发生过重新连接超时；在尚未写分区时，拔下 iPad 端插头，等待约 2 秒后接回，再继续启动。
+- 看到 `Booting Kernel` 后回到 iPadOS 主屏幕，解锁并启动 Resize APFS。
+- Resize APFS 曾一点就闪退。检查发现当时的 Python ZIP 解压没有保留 app 主程序的执行权限（变成 `0644`）。重新用 macOS `ditto` 解压，确认可执行权限后重建启动覆盖层，app 才正常启动。不要把“所有 app 文件都 chmod 755”当成通用修复。
+- 先清理 iPadOS 存储，再调整 APFS。界面从约 108.3 GB allocated 降到约 64 GB allocated；最终将 APFS 设置为约 72 GB，留下约 56 GB unallocated。
+- 等待 **Completed and verified** 后才继续安装。此次没有保存足以精确计算 APFS 搬移耗时的起止记录，不能事后编造用时。
+
+## 3. 安装和启动
+
+通过发布版 Orchard 安装器完成恢复环境引导、分区选择、系统写入和首次启动。Linux 空间中约 1 GiB 为 VFAT 启动分区，约 51.2 GiB 为 ext4 根分区；GB 与 GiB 不同，不能直接把界面上的 56 GB 当作 56 GiB。系统空闲空间约 47 GiB。
+
+本次安装回执的安装阶段约 153 秒；包含启动过程的记录约 274 秒。这不包括 APFS 调整、固件下载、手工 DFU 重试和之后的汉化。
+
+安装时在本地私密提示中设置账户密码和 6 位 PIN。SSH 使用安装器导入的公钥，Dropbear 关闭密码登录。USB SSH 的一般用法见[中文指南](README.md#日常使用)。
+
+冷启动使用 `orchard launch`，不能配置成脱离电脑自动原生引导。
+
+## 4. 横屏和输入法
+
+第一次将显示输出旋转到 `90`，并保存到 Labwc 自启。后来排查触摸时临时切回竖屏。最终验证横屏点击和 PIN 解锁正常后才恢复横屏并保存。
+
+安装的软件包：
+
+```text
+fcitx5
+fcitx5-chinese-addons
+fcitx5-gtk
+fcitx5-qt
+fcitx5-configtool
+noto-fonts-cjk
+```
+
+默认镜像直接包含这些包。人工补装时，CJK 字体下载较大；此次使用 USTC 的 Arch Linux ARM 镜像下载，并按包数据库 SHA-256 核对后放入 pacman 缓存。没有绕过 HTTPS 证书检查。版本号、单次包校验值和缓存路径没有写成未来默认依赖。
+
+生成 `zh_CN.UTF-8`，将系统 locale 设为中文。Labwc 和 systemd 用户环境设置：
+
+```ini
+LANG=zh_CN.UTF-8
+LANGUAGE=zh_CN:zh:en
+XMODIFIERS=@im=fcitx
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+```
+
+Fcitx5 profile 包含 `keyboard-us` 和 `pinyin`，默认拼音。启动命令是 `fcitx5 -d`；曾误用 `--daemon`，只显示帮助，已修正。中文切换默认热键为 `Ctrl + 空格`，另提供“切换中英文输入”应用入口。
+
+中文 Shell 词典覆盖这版全部 572 个英文 key，并核对 `%1` 等占位符。菜单另读 `menu.json`，只安装 `shell.json` 会留下英文菜单。中文词典以 Omarchy 上游中文翻译为基础，补齐本版缺失项目；随源码提交，运行时不在线下载。
+
+安装字体前就运行的 Qt 桌面仍可能显示方框。此次是在已正常解锁的会话里重启 Shell 后才正常显示中文；没有终止锁定中的 Shell 来绕过认证。新镜像先安装字体，再启动 greeter、桌面和输入法，避免首次使用遇到这一顺序问题。
+
+## 5. 触摸故障与恢复顺序
+
+故障最初表现为锁屏数字完全点不动；在 iPad 本机玻璃屏幕轻点，而不是在 Mac 预览窗口中点。
+
+1. 检查屏幕是否只是熄灭；用正常唤醒操作点亮面板，锁屏继续保持安全状态。
+2. 只统计输入事件，不记录 PIN。最初触摸设备没有上报事件，单纯切方向无效。
+3. 经设备型号、驱动绑定及固件名检查后，只重新初始化 J71b 的 Apple Z2 触摸控制器。随后再次监测能收到触摸事件，说明驱动恢复。
+4. 此时曾启用过 `mouseEmulation="yes"` 兼容模式。桌面窗口可以拖动，Qt 顶栏和锁屏却不能正常点击。
+5. 通过本地 Mac 终端隐藏输入 PIN，并经 SSH 标准输入传给虚拟键盘，走正常 PAM 验证解锁。PIN 没有作为进程命令行参数或日志保存，也没有取消锁屏认证。
+6. 恢复原生触摸 `mouseEmulation="no"`，并将命名触摸设备映射到实际显示输出。顶部菜单恢复点击。
+7. 横屏下额外加入的两个相反方向旋转矩阵都没有正确工作。撤销额外旋转，用两个可见目标测量：在正常校准矩阵下，两个实际触点都落在对应目标附近，说明不应再叠加旋转。
+8. 保存横屏、保留原生触摸及输出映射。最后在 iPad 本机点击锁屏数字，用 PIN 正常解锁，验证原问题解决。
+
+最终原则是 **输出旋转、触摸映射只各做一次**。不把失败的兼容模式或旋转矩阵作为默认值。当前 fork 已有 `touch-output` 动态映射和旋转监听，应复用它们，而不是再硬编码 J71b 之外设备的连接器名。
+
+### 触摸完全无事件时的维护操作
+
+以下是此次使用过的 J71b 专用操作，需在还能通过 SSH 连接时由维护者手动执行；不是开机服务、不是默认自愈脚本，也不能用于其他机型。先确认没有进行磁盘写入或系统更新。
+
+```sh
+sudo bash <<'ROOT'
+set -euo pipefail
+driver=/sys/bus/spi/drivers/apple-z2
+device=/sys/bus/spi/devices/spi0.0
+test "$(readlink -f "$device/driver")" = "$driver"
+firmware=$(tr -d '\000' < "$device/of_node/firmware-name")
+case "$firmware" in apple/j71b-*) ;; *) echo 'Not the verified J71b touchscreen' >&2; exit 1;; esac
+test -r "/lib/firmware/$firmware"
+printf 'spi0.0' > "$driver/unbind"
+sleep 1
+printf 'spi0.0' > "$driver/bind"
+udevadm settle --timeout=15
+ROOT
+```
+
+驱动故障属于 Orchard 的硬件支持范围；本 fork 记录处理方法，不携带用户固件、不自动执行上述重置。
+
+## 6. 截图与验证
+
+安装初期 iPadOS 截图服务因缺少匹配的开发者映像未能工作；当时通过 QuickTime 的 USB 画面预览查看设备。Linux 启动后直接使用 Wayland 截图，不依赖 Mac 预览窗口控制触摸：
+
+```sh
+XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 grim -s 0.5 screenshot.png
+```
+
+运行在当前图形会话用户中；运行目录和 Wayland socket 应以实际会话为准。半尺寸截图能减少 SSH 传输量。个人截图、浏览器画面和原始日志不随公开源码提交。
+
+此次硬件验证结果：
+
+- 中文菜单正常显示。
+- Fcitx5 拼音出现候选词，实际提交并读回“你好”。
+- 横屏校准两次点按接近目标，原生触摸可用。
+- 锁屏数字可触摸，PIN 验证成功；电脑端也确认 `locked=false`。
+
+这些是现有已安装系统上的结果，不应写成“当前 main 新构建镜像已完成硬件验收”。新构建仍需要单独验收安装、greeter、桌面和冷启动。
+
+## 默认配置在源码中的位置
+
+- `system/packages.txt`：构建时安装字体及 Fcitx5。
+- `system/assemble-rootfs`：在目标 root 内生成 locale。
+- `desktop/configuration/chinese-defaults/`：系统和用户的初始语言、输入法、字体、方向偏好。
+- `desktop/shell/default/i18n/zh-CN/`：中文词典。
+- `desktop/configuration/labwc-autostart`：启动输入法，导出会话环境。
+- `desktop/configuration/scale-output`：在映射桌面前应用保存的方向，保留原生分辨率与时序。
+- `desktop/configuration/touch-output`：命名设备、实际连接器、原生触摸映射。
+- `desktop/shell/bin/omarchy-display-orientation`：横屏、竖屏、自动旋转选择。
+- `desktop/stage.py`、`release/public_root.py`：将默认文件和词典纳入发行载荷与内容清单。

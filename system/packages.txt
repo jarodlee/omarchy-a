@@ -18,6 +18,13 @@ foot
 ttf-dejavu
 ttf-jetbrains-mono-nerd
 ttf-nerd-fonts-symbols
+# Simplified Chinese text and Pinyin, available on the first offline login.
+noto-fonts-cjk
+fcitx5
+fcitx5-chinese-addons
+fcitx5-gtk
+fcitx5-qt
+fcitx5-configtool
 firefox
 fastfetch
 starship

@@ -10,3 +10,13 @@ if (( ${#outputs[@]} != 1 )) || ! grep -q '  Enabled: yes' <<< "$state" ||
   exit 0
 fi
 wlr-randr --output "${outputs[0]}" --scale 2
+# A saved preference is applied before the first desktop surface maps. The
+# greeter has no user preference and retains its existing portrait layout.
+preference=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/output-transform
+if [[ -f $preference ]]; then
+  transform=$(<"$preference")
+  case $transform in
+    normal|90|180|270) wlr-randr --output "${outputs[0]}" --transform "$transform" ;;
+    *) echo 'Invalid saved output transform; left orientation unchanged' >&2 ;;
+  esac
+fi

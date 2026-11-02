@@ -80,6 +80,15 @@ class ImageProduction(unittest.TestCase):
                 for name, expected in replacements.items():
                     self.assertEqual(bundle.extractfile(name).read(), expected)
                     self.assertEqual(manifest[name], hashlib.sha256(expected).hexdigest())
+                for name, (expected, mode) in public_root.desktop_additions().items():
+                    self.assertEqual(bundle.extractfile(name).read(), expected)
+                    self.assertEqual(manifest[name], hashlib.sha256(expected).hexdigest())
+                for name in ('home/tablet/.config/fcitx5', 'home/tablet/.config/fcitx5/profile',
+                             'home/tablet/.config/omarchy/rotation-lock'):
+                    member = bundle.getmember(name)
+                    self.assertEqual((member.uid, member.gid), (1000, 1000), name)
+                locale = bundle.getmember('etc/locale.conf')
+                self.assertEqual((locale.uid, locale.gid), (0, 0))
                 # The tablet session reaches its readiness helper through public parents.
                 for name in ('usr', 'usr/libexec', 'usr/libexec/omarchy-desktop-ready'):
                     self.assertEqual(bundle.getmember(name).mode & 0o755, 0o755, name)

@@ -111,7 +111,15 @@ def labwc_files(directory):
 
 def desktop_additions():
     name = 'home/tablet/.local/share/omarchy-ipad/shell/bluetooth-pairing/shell.qml'
-    return {name: ((PROJECT / 'desktop/shell/shell/bluetooth-pairing/shell.qml').read_bytes(), 0o644)}
+    additions = {name: ((PROJECT / 'desktop/shell/shell/bluetooth-pairing/shell.qml').read_bytes(), 0o644)}
+    defaults = PROJECT / 'desktop/configuration/chinese-defaults'
+    for path in sorted(defaults.rglob('*')):
+        if path.is_file() and not path.is_symlink():
+            additions[path.relative_to(defaults).as_posix()] = (path.read_bytes(), 0o644)
+    for path in sorted((PROJECT / 'desktop/shell/default/i18n/zh-CN').glob('*.json')):
+        name = 'home/tablet/.local/share/omarchy-ipad/default/i18n/zh-CN/' + path.name
+        additions[name] = (path.read_bytes(), 0o644)
+    return additions
 
 
 def system_files():
@@ -233,12 +241,16 @@ def build(base, base_receipt, outdir, release, cursor_tools, bluetooth_tools=Non
                             continue
                         member = tarfile.TarInfo(parent)
                         member.type, member.mode = tarfile.DIRTYPE, 0o755
+                        if parent == 'home/tablet' or parent.startswith('home/tablet/'):
+                            member.uid = member.gid = 1000
                         add(member)
 
                 for name, (data, mode) in sorted(additions.items()):
                     add_parents(name)
                     member = tarfile.TarInfo(name)
                     member.mode, member.size = mode, len(data)
+                    if name.startswith('home/tablet/'):
+                        member.uid = member.gid = 1000
                     add(member, data)
                 # A login on orchard's USB serial console as well, like minimal-linux.
                 wants = [('multi-user.target.wants/' + unit, unit) for unit in
