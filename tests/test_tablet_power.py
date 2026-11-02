@@ -14,6 +14,13 @@ with patch.dict(os.environ, {'XDG_RUNTIME_DIR': '/tmp'}):
 
 
 class TabletPowerTests(unittest.TestCase):
+    def test_recovery_chord_consumes_home_release(self):
+        with patch.object(power.sys, 'argv', ['omarchy-tablet-power', 'home']), \
+             patch.object(power, 'recovery_active', return_value=True), \
+             patch.object(power, 'command') as command:
+            power.main()
+        command.assert_not_called()
+
     def test_blanks_before_requesting_or_checking_lock(self):
         events = []
         states = iter([{'secure': False}, {'secure': False}, {'secure': True}])

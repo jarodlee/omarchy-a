@@ -1,0 +1,30 @@
+[Unit]
+Description=Home + Volume Up touchscreen and desktop recovery (J71b)
+After=systemd-udev-trigger.service greetd.service
+
+[Service]
+Type=simple
+ExecCondition=/usr/local/libexec/omarchy-touch-recovery supported
+ExecStart=/usr/local/libexec/omarchy-touch-recovery watch
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+RuntimeDirectory=omarchy-touch-recovery
+RuntimeDirectoryMode=0755
+StateDirectory=omarchy-touch-recovery
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/usr/share/omarchy-greeter/labwc
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -74,6 +74,16 @@ class GreeterStagingTests(unittest.TestCase):
             ):
                 self.assertEqual(manifest[relative], hashlib.sha256((target / relative).read_bytes()).hexdigest())
             self.assertTrue((target / 'usr/local/bin/omarchy-display-orientation').is_symlink())
+            recovery = target / 'usr/local/libexec/omarchy-touch-recovery'
+            self.assertTrue(recovery.stat().st_mode & 0o111)
+            self.assertEqual(manifest[str(recovery.relative_to(target))],
+                             hashlib.sha256(recovery.read_bytes()).hexdigest())
+            recovery_unit = target / 'usr/lib/systemd/system/omarchy-touch-recovery.service'
+            self.assertIn('ExecCondition=/usr/local/libexec/omarchy-touch-recovery supported',
+                          recovery_unit.read_text())
+            enabled = target / 'etc/systemd/system/multi-user.target.wants/omarchy-touch-recovery.service'
+            self.assertTrue(enabled.is_symlink())
+            self.assertEqual(str(enabled.readlink()), '/usr/lib/systemd/system/omarchy-touch-recovery.service')
 
 
 if __name__ == '__main__':

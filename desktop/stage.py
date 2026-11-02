@@ -74,6 +74,13 @@ def main():
     (greeter / "labwc/autostart").chmod(0o755)
     copy(HERE / "greeter/greeter-session", target / "usr/local/libexec/omarchy-greeter-session", 0o755)
     copy(HERE / "greeter/greeter-wake", target / "usr/local/libexec/omarchy-greeter-wake", 0o755)
+    copy(HERE / 'recovery/omarchy-touch-recovery',
+         target / 'usr/local/libexec/omarchy-touch-recovery', 0o755)
+    copy(HERE / 'recovery/omarchy-touch-recovery.service',
+         target / 'usr/lib/systemd/system/omarchy-touch-recovery.service', 0o644)
+    recovery_link = target / 'etc/systemd/system/multi-user.target.wants/omarchy-touch-recovery.service'
+    recovery_link.parent.mkdir(parents=True, exist_ok=True)
+    recovery_link.symlink_to('/usr/lib/systemd/system/omarchy-touch-recovery.service')
     keyboard = source / "trials/wvkbd-mobintl-v0.20-font18-special15-state"
     copy(KEYBOARD, keyboard, 0o755)
     for script in (source / "bin").iterdir():

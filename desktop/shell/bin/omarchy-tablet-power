@@ -11,6 +11,11 @@ import time
 
 RUNTIME = Path(os.environ['XDG_RUNTIME_DIR'])
 
+def recovery_active():
+    helper = Path('/usr/local/libexec/omarchy-touch-recovery')
+    return (helper.is_file() and subprocess.run(
+        [str(helper), 'active'], timeout=2).returncode == 0)
+
 def command(*args, timeout=3):
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=True).stdout.strip()
 
@@ -62,6 +67,8 @@ def lock_and_blank():
 
 def main():
     action = sys.argv[1] if len(sys.argv) == 2 else ''
+    if action == 'home' and recovery_active():
+        return
     if action == 'input':
         # Touch and keys on the lock screen: only Home and Power turn the panel
         # back on (as on iOS); the lock may count input only while it is lit.
