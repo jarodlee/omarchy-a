@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from orchard.hardware import firmware_path
 from orchard.image.initramfs import record
@@ -29,6 +30,38 @@ def release_files(output):
 
 
 ORCHARD = {'commit': 'c' * 40, 'modified': False}
+
+
+class PrivateFirmwareRecipes(unittest.TestCase):
+    def destinations(self, recipe):
+        from release.audit import private_firmware
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'firmware.json'
+            path.write_text(json.dumps(recipe))
+            with patch('orchard.hardware.profiles', return_value=['test-board']), \
+                    patch('orchard.hardware.firmware_path', return_value=path):
+                return private_firmware()
+
+    def test_manual_recipe_excludes_copied_generated_and_owner_calibration(self):
+        recipe = {key: [{'destination': 'lib/firmware/' + name}]
+                  for key, name in [('files', 'touch.bin'), ('generated', 'wifi.bin'),
+                                    ('private_inputs', 'mtcal.bin')]}
+        self.assertEqual(self.destinations(recipe),
+                         {'lib/firmware/touch.bin', 'lib/firmware/wifi.bin',
+                          'lib/firmware/mtcal.bin'})
+
+    def test_outputs_and_additional_private_inputs_are_both_excluded(self):
+        self.assertEqual(self.destinations({
+            'outputs': [{'destination': 'lib/firmware/touch.bin'}],
+            'private_inputs': [{'destination': 'lib/firmware/mtcal.bin'}]}),
+            {'lib/firmware/touch.bin', 'lib/firmware/mtcal.bin'})
+
+    def test_unrecognized_empty_or_unsafe_recipe_fails_closed(self):
+        for recipe in ({}, {'outputs': []}, {'files': {}},
+                       {'outputs': [{'destination': '/lib/firmware/a'}]},
+                       {'outputs': [{'destination': 'lib/firmware/../a'}]}):
+            with self.subTest(recipe=recipe), self.assertRaises(ValueError):
+                self.destinations(recipe)
 
 
 class Publication(unittest.TestCase):

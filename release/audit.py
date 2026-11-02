@@ -49,8 +49,25 @@ def audit_recovery(image):
 def private_firmware():
     """Where any described board's private firmware lands; none of it may be public."""
     from orchard import hardware
-    return {row['destination'] for profile in hardware.profiles()
-            for row in json.loads(hardware.firmware_path(profile).read_text())['outputs']}
+    destinations = set()
+    for profile in hardware.profiles():
+        recipe = json.loads(hardware.firmware_path(profile).read_text())
+        # ARMv7 manual recipes describe copied, generated and owner-specific
+        # files separately; all must remain excluded, including calibration.
+        groups = [recipe[key] for key in ('outputs', 'files', 'generated', 'private_inputs')
+                  if key in recipe]
+        if not groups or not all(isinstance(group, list) for group in groups):
+            raise ValueError('Unknown firmware recipe destinations: ' + profile)
+        rows = [row for group in groups for row in group]
+        if not rows:
+            raise ValueError('Empty firmware recipe destinations: ' + profile)
+        for row in rows:
+            destination = row['destination']
+            path = PurePosixPath(destination)
+            if path.is_absolute() or '..' in path.parts or not destination.startswith('lib/firmware/'):
+                raise ValueError('Unsafe private firmware destination')
+            destinations.add(destination)
+    return destinations
 
 
 def asset(manifest, item, role):
