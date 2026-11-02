@@ -29,6 +29,10 @@ timeout -k 5 10 journalctl -u omarchy-touch-recovery.service -n 25 --no-pager
 
 日志应先显示 `Home + Volume Up recovery ready`。触发后可见 `Physical recovery chord activated`、恢复完成及 `Recovery exit: 0`。若失败，保留日志并通过 SSH 排查；不要持续重复按键。关机、低电量断电或系统完全卡死时，此软件入口无法运行。
 
+若旧安装显示 `Greeter configuration must be root-owned`，还需检查登录配置及目录是否允许组或其他用户写入。此次实测中所有者已是 root，但旧目录为 `775`、配置为 `664`，仍会被拒绝。确认路径没有符号链接、所有者及组均为 root 后，将 `/usr/share/omarchy-greeter` 和其 `labwc` 目录规范为 `755`，`labwc/rc.xml` 为 `644`；不要放宽恢复工具的检查。新镜像在打包时已规范这些权限。
+
+2026-11-02，J71b 实机已通过实体组合键触发、正常 PIN 重新登录及点击、拖动窗口测试；完整恢复后台执行约 5 秒。开机启动已启用，尚未另做冷启动实测。
+
 停用入口（不卸载触摸驱动）：
 
 ```sh
