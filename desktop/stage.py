@@ -29,6 +29,14 @@ def copy(src, dst, mode=None):
         dst.chmod(mode)
 
 
+def harden_greeter(root):
+    """Keep trusted login assets immutable to groups, regardless of host umask."""
+    for path in (root, *root.rglob('*')):
+        if path.is_symlink():
+            raise ValueError('Greeter assets must not contain symlinks')
+        path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", type=Path, help="new, nonexistent staging directory")
@@ -133,6 +141,7 @@ def main():
     (target / "usr/local/libexec/arch-ipad-rotate-output").chmod(0o755)
     (target / "usr/local/libexec/arch-ipad-touch-output").chmod(0o755)
     (target / "usr/local/libexec/arch-ipad-login-session").chmod(0o755)
+    harden_greeter(greeter)
     # Record a content hash for each staged payload file.
     files = sorted(p for p in target.rglob("*") if p.is_file() and not p.is_symlink())
     manifest = {str(p.relative_to(target)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
