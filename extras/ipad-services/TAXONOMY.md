@@ -36,7 +36,10 @@
 配置备份并增加新主机名规则，校验 ingress 后重启连接器；不包含任何通道凭据。
 DNS 绑定另在机主 Cloudflare 账号中完成。
 
-## 验证与使用限制
+## 初次静态版的验证与使用限制
+
+后续已增加可选多用户服务器同步，见 [TAXONOMY-SYNC.md](TAXONOMY-SYNC.md)。
+以下“仅存本机”的说明是初次静态版本的行为。
 
 上游 `node tests/test_engine.js`：94 通过、0 失败；
 `node tests/test_blindspots.js`：7 通过。
