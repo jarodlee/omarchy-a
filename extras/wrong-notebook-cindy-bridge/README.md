@@ -2,8 +2,10 @@
 
 个人本地插件。iPad 运行错题本，MacMini 的 Cindy 执行文字与图片推理。
 
-- Mac 仅监听 `127.0.0.1:37309`；复用机主既有、严格校验主机身份的 iPad 专用 SSH 密钥，
-  将 iPad 的 `127.0.0.1:37309` 转发到 Mac 回环接口，不另开 Mac 局域网入口。
+- Mac 仅监听 `127.0.0.1:37309`。当前部署使用 Mac 上的专用 Cloudflare Tunnel，
+  iPad 调用 `https://cindy-ctb.ghtxx.cn/v1`，不依赖同一局域网或 iPad 固定内网地址。
+  API 仍要求独立 Bearer 桥接密钥；它不是免认证的公共模型接口。
+  旧内网 SSH 转发模式保留为可选回退，当前已停止；显式调用 `configure` 会重新启用旧模式。
 - 独立生成桥接认证密钥，保存在本机用户私有的 `~/.local/state/cindy-notebook-bridge/bridge.key`。
   它不是模型密钥，不读取或复制 Cindy 模型供应商凭证，不通过工具结果、日志或 Git 返回。
 - 图片通过 Cindy 公共任务附件接口传递，不用 OCR 文字替代图片。只接收客户端直接提交的
@@ -23,11 +25,14 @@
 ## 本机操作
 
 1. `status` 检查实际 Cindy 任务接口和图片能力。
-2. `configure` 指定已授权 J71b iPad 的局域网地址，先验证型号和 pinned SSH 身份再转发。
+2. 首次 `configure` 验证已授权 J71b 的型号和 pinned SSH 身份；专用 HTTPS 通道就绪后，
+   `public_endpoint` 保存已授权的 `https://cindy-ctb.ghtxx.cn/v1`，停止旧 SSH 转发。
 3. `self_test` 分别验证文字及一张合成图片，`diagnostics` 查看原生任务回执。
 4. 两项实测都成功后才调用 `pair_notebook`，原错题本配置保存在设备私有维护目录。
    提供商更改采用原子写入，保留其他配置，服务启动失败则恢复本次原配置。
-5. Mac 和 Cindy 必须持续运行；插件停用、卸载或 Cindy 退出会关闭 worker 与 SSH 转发。
+5. Mac 和 Cindy 必须持续运行且联网；插件停用、卸载或 Cindy 退出会关闭模型桥接。
+   Mac 的 Cloudflare 连接器由独立 LaunchAgent 在用户登录后运行，并在退出后自动重启。
+   插件退出时，连接器不能代替 Cindy 执行推理。
 
 节点只使用 Cindy 随包 Node 与系统既有 SSH，不在安装或首次运行时下载、安装代码。
 源代码是本任务工作目录中的独立作者副本，发布和安装都只能经过 Forge。
@@ -37,6 +42,8 @@
 运行 `node --test test/bridge.test.cjs`。覆盖认证、图片拒绝策略、标准响应、SSE、失败、
 重复请求合并、跨 worker 重启的回执身份以及未完成实测前拒绝切换提供商。
 这些模拟测试不能证明真实 Cindy 模型调用、图片输入或 iPad 端到端路径成功，需另做实测。
+当前部署已通过 iPad 到公共 HTTPS 地址的真实文字与图片测试，并验证无密钥请求返回 401。
+未自动切换 iPad 的实际 Wi-Fi；换网可用性由公共地址路径与已停用的内网转发验证。
 
 宿主查询版本为 `0.1.124`，安装资源标记源码提交
 `5257b3d131ac6d6961ff2afe91d60329e314eadc`。官方公开仓库无法解析该提交，

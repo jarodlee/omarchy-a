@@ -80,6 +80,7 @@ cindy.onHostMessage(async msg=>{
   let result;
   if(msg.tool==='status')result={bridge:await node('bridge/status'),taskCapabilities:await caps()};
   else if(msg.tool==='configure')result=await node('bridge/configure',{ipadHost:msg.args.ipadHost});
+  else if(msg.tool==='public_endpoint')result=await node('bridge/public_endpoint',msg.args);
   else if(msg.tool==='self_test')result=await node('bridge/self_test',msg.args);
   else if(msg.tool==='diagnostics')result={bridge:await node('bridge/status'),last,active:Array.from(active.values())};
   else if(msg.tool==='pair_notebook')result=await node('bridge/pair');

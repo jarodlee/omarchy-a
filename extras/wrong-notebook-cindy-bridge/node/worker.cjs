@@ -60,7 +60,7 @@ class Bridge{
  async listen(){
   this.server=http.createServer((q,s)=>void this.handle(q,s));this.server.requestTimeout=300000;
   await new Promise((r,j)=>{this.server.once('error',j);this.server.listen(this.port,'127.0.0.1',r);});this.port=this.server.address().port;
-  if(this.config.ipadHost)this.startTunnel();
+  if(this.config.ipadHost&&!this.config.publicEndpoint)this.startTunnel();
  }
  sshArgs(){
   const d=path.join(os.homedir(),'Library','Application Support','Orchard','private','ssh');
@@ -71,11 +71,11 @@ class Bridge{
   const code="timeout -k 3 8 python3 -c 'from pathlib import Path;assert b\"apple,j71b\\0\" in Path(\"/proc/device-tree/compatible\").read_bytes();print(\"J71B_IDENTITY_OK\")'";
   const r=await exec('/usr/bin/ssh',[...this.sshArgs(),'root@'+host,code],{timeout:14000,maxBuffer:4096});
   if(!r.stdout.includes('J71B_IDENTITY_OK'))throw Error('iPad identity not verified');
-  this.stopTunnel();this.config.ipadHost=host;atomic(this.configFile,JSON.stringify(this.config));
+  this.stopTunnel();this.config.ipadHost=host;delete this.config.publicEndpoint;atomic(this.configFile,JSON.stringify(this.config));
   this.stopped=false;if(!this.server?.listening)await this.listen();else this.startTunnel();return this.status();
  }
  startTunnel(){
-  if(this.stopped||!this.config.ipadHost||this.ssh)return;
+  if(this.stopped||this.config.publicEndpoint||!this.config.ipadHost||this.ssh)return;
   this.ssh=spawn('/usr/bin/ssh',[...this.sshArgs(),'-N','-T','-R','127.0.0.1:'+PORT+':127.0.0.1:'+this.port,'root@'+this.config.ipadHost],{stdio:['ignore','ignore','pipe']});
   this.ssh.stderr.on('data',b=>{this.tunnelError=b.toString().slice(-400);});
   this.ssh.on('error',e=>{this.tunnelError=e.message;});
@@ -141,16 +141,17 @@ class Bridge{
   const body={model:'cindy',messages:[{role:'user',content}],user:crypto.randomUUID()},j=this.submit(body,crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex'),kind);return{submitted:true,jobId:j.id,kind};
  }
  async pair(){
-  if(!this.config.ipadHost||!this.ssh||!this.selfTests.text||!this.selfTests.image)throw Error('Both real Cindy text and image probes must pass before pairing');
+  if(!this.config.ipadHost||(!this.ssh&&!this.config.publicEndpoint)||!this.selfTests.text||!this.selfTests.image)throw Error('Both real Cindy text and image probes must pass before pairing');
   const code=fs.readFileSync(path.join(__dirname,'pair.py'),'utf8'),quoted="'"+code.replace(/'/g,"'\\''")+"'";
-  const payload=JSON.stringify({key:this.key,port:PORT});
+  const endpoint=this.config.publicEndpoint||'http://127.0.0.1:'+PORT+'/v1';
+  const payload=JSON.stringify({key:this.key,port:PORT,baseUrl:endpoint});
   await new Promise((resolve,reject)=>{
    const p=spawn('/usr/bin/ssh',[...this.sshArgs(),'root@'+this.config.ipadHost,'timeout -k 5 45 python3 -c '+quoted],{stdio:['pipe','pipe','pipe']});
    let output='',error='';const timer=setTimeout(()=>p.kill('SIGTERM'),52000);
    p.stdout.on('data',b=>{output+=b.toString();});p.stderr.on('data',b=>{error+=b.toString();});
    p.on('error',reject);p.on('exit',code=>{clearTimeout(timer);code===0&&output.includes('CINDY_PROVIDER_PAIRED')?resolve():reject(Error('Pairing failed: '+error.slice(-700)));});p.stdin.end(payload);
   });
-  return{paired:true,provider:'MacMini Cindy',model:'cindy',baseUrl:'http://127.0.0.1:'+PORT+'/v1',previousConfigurationPreserved:true};
+  return{paired:true,provider:'MacMini Cindy',model:'cindy',baseUrl:endpoint,previousConfigurationPreserved:true};
  }
  async stop(){this.stopped=true;this.stopTunnel();this.server?.closeAllConnections();await new Promise(r=>this.server?this.server.close(r):r());return{stopped:true};}
 }
@@ -161,7 +162,11 @@ async function cli(){
   let r;try{
    r=JSON.parse(line);const p=r.params||{};let result;
    switch(r.method){
-    case'bridge/status':result={...bridge.status(),route:bridge.config.route||null};break;
+    case'bridge/status':result={...bridge.status(),route:bridge.config.route||null,publicEndpoint:bridge.config.publicEndpoint||null};break;
+    case'bridge/public_endpoint':{
+     if(p.baseUrl!=='https://cindy-ctb.ghtxx.cn/v1')throw problem('Unexpected public endpoint');
+     bridge.stopTunnel();bridge.tunnelError=null;bridge.config.publicEndpoint=p.baseUrl;atomic(bridge.configFile,JSON.stringify(bridge.config));result={saved:true,publicEndpoint:p.baseUrl};break;
+    }
     case'bridge/set_route':{
      const r=p.route;if(!r||!['cc','codex','pi'].includes(r.agentKind)||typeof r.providerId!=='string'||typeof r.model!=='string'||typeof r.effort!=='string'||![true,false,'ultrafast'].includes(r.fastMode))throw problem('Invalid selected route');
      bridge.config.route=r;atomic(bridge.configFile,JSON.stringify(bridge.config));bridge.selfTests={text:false,image:false};result={saved:true,route:r};break;

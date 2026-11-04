@@ -21,6 +21,7 @@
     "lifecycle": "resident"
   },
   "tools": [
+    {"name":"public_endpoint","description":"将已授权的错题本桥接改为专用 HTTPS 通道，停止依赖 iPad 内网 SSH 转发。","parameters":{"type":"object","properties":{"baseUrl":{"type":"string"}},"required":["baseUrl"]}},
     {"name":"select_model","description":"保存用户明确选定的模型目录 ID，执行前重新验证来源。","parameters":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}},
     {"name":"list_models","description":"只读列出本机 Cindy 可用的完整任务模型路线，不读取凭据。","parameters":{"type":"object","properties":{}}},
     {

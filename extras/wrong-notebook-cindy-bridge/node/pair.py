@@ -23,8 +23,10 @@ if not backup.exists():
     backup.write_bytes(original)
     backup.chmod(0o600)
 instances = config.setdefault('openai', {}).setdefault('instances', [])
+endpoint = incoming.get('baseUrl', 'http://127.0.0.1:37309/v1')
+assert endpoint in ('http://127.0.0.1:37309/v1', 'https://cindy-ctb.ghtxx.cn/v1')
 item = {'id': 'cindy-local-bridge', 'name': 'MacMini Cindy', 'apiKey': incoming['key'],
-        'baseUrl': 'http://127.0.0.1:37309/v1', 'model': 'cindy'}
+        'baseUrl': endpoint, 'model': 'cindy'}
 index = next((i for i, value in enumerate(instances) if value.get('id') == item['id']), None)
 if index is None:
     assert len(instances) < 10

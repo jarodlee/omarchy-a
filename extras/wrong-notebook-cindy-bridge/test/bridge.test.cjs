@@ -43,6 +43,15 @@ test('SSE keeps OpenAI chunk shape and reports model failure as an error',async 
 test('requires both real probe outcomes before changing notebook provider',async t=>{
  const{bridge}=await fixture(t,()=>{});await assert.rejects(bridge.pair(),/Both real/);
 });
+test('public HTTPS mode survives worker restart without starting private iPad SSH forwarding',async t=>{
+ const{bridge}=await fixture(t,()=>{});
+ fs.writeFileSync(bridge.configFile,JSON.stringify({ipadHost:'192.168.1.207',publicEndpoint:'https://cindy-ctb.ghtxx.cn/v1'}));
+ const second=new Bridge({directory:bridge.directory,port:0});
+ second.startTunnel=()=>{throw Error('Unexpected dependence on private iPad address');};
+ await second.listen();
+ try{assert.equal((await fetch('http://127.0.0.1:'+second.port+'/v1/models')).status,401);assert.equal(second.ssh,null);}
+ finally{await second.stop();}
+});
 test('reuses persisted receipt identity when a client retries after worker restart',async t=>{
  const{bridge}=await fixture(t,()=>{}),j=bridge.submit(body,'stable-hash');
  j.receipt={taskId:'owned-task',runId:'owned-run'};bridge.receipts[j.id].receipt=j.receipt;bridge.save();
