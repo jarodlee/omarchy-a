@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import urllib.request
+from urllib.parse import urlsplit,parse_qs
 
 ROOT=Path(__file__).parent
 TARGETS={'notebook':'http://127.0.0.1:3000/api/health',
@@ -45,13 +46,29 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def do_HEAD(self):self.do_GET()
     def do_GET(self):
-        path=self.path.split('?')[0]
+        parsed=urlsplit(self.path);path=parsed.path
         if path in ['/','/index.html']:
             data=(ROOT/'index.html').read_bytes();kind='text/html; charset=utf-8';code=200
         elif path=='/health':
             data=b'{"ok":true,"service":"omarchy-home"}';kind='application/json';code=200
         elif path=='/api/status':
             data=json.dumps({'services':status()}).encode();kind='application/json';code=200
+        elif path in ['/battery','/battery/','/api/battery']:
+            target='http://127.0.0.1:3001/'
+            kind='text/html; charset=utf-8'
+            if path=='/api/battery':
+                try:
+                    q=parse_qs(parsed.query,max_num_fields=2)
+                    hours=int(q.get('hours',['6'])[0])
+                    if hours not in (1,6,24) or set(q)-{'hours'}:raise ValueError()
+                except (ValueError,IndexError):
+                    self.send_error(400);return
+                target+='api/battery?hours='+str(hours);kind='application/json'
+            try:
+                with opener.open(target,timeout=3) as r:data=r.read(2*1024*1024+1)
+                if len(data)>2*1024*1024:raise OSError('Battery response too large')
+                code=200
+            except OSError:data=b'{"error":"battery monitor unavailable"}';kind='application/json';code=503
         else:data=b'Not found';kind='text/plain';code=404
         self.send_response(code);self.send_header('Content-Type',kind)
         self.send_header('Content-Length',str(len(data)));self.send_header('Cache-Control','no-store')
