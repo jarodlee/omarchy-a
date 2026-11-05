@@ -41,21 +41,26 @@ Node 堆上限 384MB，服务内存硬上限 800MB；这是本机运行约束，
 机主通过初始化页面设置管理员邮箱和密码；密码、令牌、密钥、数据库和 AI 配置不进入 Git。
 配置 AI 渠道后才能识题或生成讲解。其他设备通过浏览器访问本机局域网地址的 3000 端口。
 
-## 只读电池监测
+## 只读设备与电池监测
+
+已扩展 CPU、内存/Swap、磁盘、网络、负载和运行时间的 24 小时统计。
+采样口径、接口、实机性能与升级说明见 [SYSTEM-MONITOR.md](SYSTEM-MONITOR.md)。
 
 `battery-monitor.py` 仅依赖 Python 标准库，读取 `/sys/class/power_supply`：
 
 - 当前电量、仪表状态、净电流、温度、电压、健康和输入限流。
-- 每分钟记录一次到 SQLite，滚动保留七天；网页每 20 秒刷新，支持最近 1、6、24 小时曲线。
+- 每分钟记录到 SQLite，电池历史保留七天、系统历史保留 24 小时。
+- 当前状态每 20 秒刷新，历史每五分钟刷新，默认显示最近 24 小时，可切换 1/6/24 小时。
 - 电池净电流保留正负号；正为充入、负为净放电。缺失传感器显示未知。
 - 输入限流与实际电池电流分别展示；两类读数的更新时间可能不同。
 - 没有驱动重绑、充电控制、限流写入、USB 操作或自动桌面恢复功能。
 
-将 `battery-monitor.py`、`index.html` 安装到 `/opt/ipad-battery-monitor/`，
+将 `battery-monitor.py`、`system_telemetry.py`、`index.html` 安装到 `/opt/ipad-battery-monitor/`，
 创建无交互登录的 `ipad-battery-monitor` 系统账户，再安装同名 service 到 `/etc/systemd/system/`。
 服务监听 3001，使用 `/var/lib/ipad-battery-monitor/history.sqlite3`，内存上限 64MB，
 CPU 配额 10%，数据目录仅服务账户可读写。unit 的 IP 规则允许本机与 RFC1918 局域网地址。
-它没有账号体系，适用于可信局域网，不应直接映射到公网。
+该端口不提供账号管理或控制 API；机主已授权由服务首页通过固定只读路径提供公网监测，
+直接端口仍限制本机与私有网络。学习记录和 AI 认证不由此监测服务处理。
 
 ```sh
 systemd-analyze verify /etc/systemd/system/wrong-notebook.service /etc/systemd/system/ipad-battery-monitor.service

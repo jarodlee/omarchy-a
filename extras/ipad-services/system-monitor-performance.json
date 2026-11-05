@@ -1,0 +1,43 @@
+{
+  "device": "J71b ARM64, 2 CPU cores, about 2GB RAM",
+  "method": "60-second cgroup observation plus a temporary 1440-row database benchmark; not a controlled all-day comparison",
+  "after": {
+    "observation_seconds": 60.008835861997795,
+    "cpu_seconds": 0.094222,
+    "cpu_percent_one_core": 0.15701354416653265,
+    "process_rss_bytes": 30638080,
+    "cgroup_memory_bytes": 18284544
+  },
+  "earlier_version_observation": {
+    "cpu_percent_one_core": 0.13735777233538626,
+    "note": "Different access conditions and process age; do not treat the difference as a causal upgrade cost"
+  },
+  "benchmark": {
+    "sampling": {
+      "mean_wall_ms": 108.104,
+      "mean_cpu_ms": 15.504,
+      "max_wall_ms": 164.479
+    },
+    "temporary_test_database": true,
+    "system_history_rows": 1440,
+    "system_history_disk_bytes": 245760,
+    "whole_fixture_database_bytes": 307200,
+    "uncached_24h_history": {
+      "mean_wall_ms": 42.119,
+      "mean_cpu_ms": 41.765,
+      "max_wall_ms": 87.67
+    },
+    "display_system_points": 360,
+    "display_battery_points": 360,
+    "full_history_json_bytes": 153060,
+    "full_history_gzip_bytes": 5927,
+    "current_json_bytes": 764,
+    "record": {
+      "mean_wall_ms": 128.638,
+      "mean_cpu_ms": 16.295,
+      "max_wall_ms": 209.479
+    },
+    "process_write_bytes_per_record": 29491,
+    "projected_sampling_and_record_cpu_percent_one_core": 0.02716
+  }
+}

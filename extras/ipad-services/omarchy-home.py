@@ -59,11 +59,13 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/battery':
                 try:
                     q=parse_qs(parsed.query,max_num_fields=2)
-                    hours=int(q.get('hours',['6'])[0])
-                    if hours not in (1,6,24) or set(q)-{'hours'}:raise ValueError()
+                    hours=int(q.get('hours',['24'])[0])
+                    view=q.get('view',['history'])[0]
+                    if hours not in (1,6,24) or view not in ('current','history') or set(q)-{'hours','view'}:raise ValueError()
                 except (ValueError,IndexError):
                     self.send_error(400);return
-                target+='api/battery?hours='+str(hours);kind='application/json'
+                target+='api/battery?view=current' if view=='current' else 'api/battery?hours='+str(hours)
+                kind='application/json'
             try:
                 with opener.open(target,timeout=3) as r:data=r.read(2*1024*1024+1)
                 if len(data)>2*1024*1024:raise OSError('Battery response too large')
