@@ -1,0 +1,17 @@
+[Unit]
+Description=Backup private learning account database
+
+[Service]
+Type=oneshot
+User=cn-math-taxonomy
+Group=cn-math-taxonomy
+ExecStart=/usr/bin/python3 /opt/cn-math-taxonomy/taxonomy-server.py --backup
+StateDirectory=cn-math-taxonomy
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=64M
+TasksMax=8

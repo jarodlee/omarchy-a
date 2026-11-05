@@ -29,6 +29,11 @@ fi
 [[ $# == 1 && $1 =~ ^([+-]?)([0-9]{1,3})%$ ]] || { echo 'Usage: omarchy-brightness-display [--no-osd] [1..100%|+5%|-5%]' >&2; exit 2; }
 sign=${BASH_REMATCH[1]}
 percent=$((10#${BASH_REMATCH[2]}))
+# Older installations use the volume buttons for relative brightness steps.
+if [[ -n $sign && -x /usr/local/libexec/omarchy-touch-recovery ]] && \
+    /usr/local/libexec/omarchy-touch-recovery active; then
+  exit 0
+fi
 if [[ -n $sign ]]; then
   read -r current < "$device/brightness"
   [[ $current =~ ^[0-9]+$ ]] || exit 1

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily learning database backup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=300
+Unit=cn-math-backup.service
+
+[Install]
+WantedBy=timers.target

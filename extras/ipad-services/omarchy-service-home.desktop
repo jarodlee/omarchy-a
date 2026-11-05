@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=服务首页
+Name[zh_CN]=服务首页
+Comment=错题本、知识图谱、学习记录与电池监测
+Exec=xdg-open http://127.0.0.1/
+Icon=applications-internet
+Terminal=false
+Categories=Education;Network;

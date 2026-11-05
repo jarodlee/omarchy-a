@@ -2,6 +2,11 @@
 # The volume keys: step the default output in 5% steps (at most 100%), then show
 # the shell's volume OSD, as the media service draws it on Hyprland.
 set -u
+# The physical recovery chord consumes the held volume repeat in the GUI.
+if [[ -x /usr/local/libexec/omarchy-touch-recovery ]] && \
+    /usr/local/libexec/omarchy-touch-recovery active; then
+  exit 0
+fi
 # labwc runs key bindings without the session's OMARCHY_PATH (labwc-autostart's).
 export OMARCHY_PATH=${OMARCHY_PATH:-$HOME/.local/share/omarchy-ipad}
 # The volume in whole percent, from "Volume: 0.45 [MUTED]".

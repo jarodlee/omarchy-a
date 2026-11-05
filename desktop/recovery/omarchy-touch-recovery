@@ -1,0 +1,341 @@
+#!/usr/bin/python3
+"""J71b physical Home + Volume Up recovery, independent of the GUI."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import select
+import signal
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+
+HOME, VOLUME_UP = 172, 115
+HOLD_SECONDS, COOLDOWN_SECONDS = 3, 30
+MARKER = Path('/run/omarchy-touch-recovery/held.json')
+STATE = Path('/var/lib/omarchy-touch-recovery')
+SCRIPT = '/usr/local/libexec/omarchy-touch-recovery'
+GREETER_CONFIG = Path('/usr/share/omarchy-greeter/labwc/rc.xml')
+EVENT = struct.Struct('@llHHi')
+
+
+class Chord:
+    """One activation per deliberate hold; lost events require a fresh release."""
+    def __init__(self):
+        self.down = set()
+        self.since = None
+        self.fired = False
+        self.blocked = False
+        self.next_allowed = 0
+
+    def resync(self, down):
+        self.down = set(down) & {HOME, VOLUME_UP}
+        self.blocked = bool(self.down)
+        self.since = None
+        self.fired = False
+
+    def feed(self, code, value, now):
+        if code not in (HOME, VOLUME_UP) or value not in (0, 1):
+            return
+        if value:
+            self.down.add(code)
+        else:
+            self.down.discard(code)
+        if not self.down:
+            self.blocked = self.fired = False
+        if self.down == {HOME, VOLUME_UP} and not self.blocked:
+            if self.since is None:
+                self.since = now
+        else:
+            self.since = None
+
+    def tick(self, now):
+        if (self.since is not None and not self.fired
+                and now - self.since >= HOLD_SECONDS and now >= self.next_allowed):
+            self.fired = True
+            self.next_allowed = now + COOLDOWN_SECONDS
+            return True
+        return False
+
+    def holding(self):
+        return self.down == {HOME, VOLUME_UP} and not self.blocked
+
+
+def active(path=MARKER, now=None):
+    try:
+        expiry = json.loads(path.read_text())['expires']
+        current = time.monotonic() if now is None else now
+        return 0 < expiry - current <= 3
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def mark(enabled):
+    if enabled:
+        temp = MARKER.with_suffix('.tmp')
+        temp.write_text(json.dumps({'expires': time.monotonic() + 2}) + '\n')
+        temp.chmod(0o644)
+        temp.replace(MARKER)
+    else:
+        MARKER.unlink(missing_ok=True)
+
+
+def supported():
+    try:
+        return b'apple,j71b\0' in Path('/proc/device-tree/compatible').read_bytes()
+    except OSError:
+        return False
+
+
+def run(*args, timeout=8):
+    return subprocess.run(args, check=True, capture_output=True, text=True,
+                          timeout=timeout).stdout.strip()
+
+
+def panel_and_touches(sysfs=Path('/sys')):
+    panels = [p.parent.name.split('-', 1)[1]
+              for p in sorted((sysfs / 'class/drm').glob('card*-*/status'))
+              if p.read_text().strip() == 'connected']
+    if len(panels) != 1:
+        raise RuntimeError('Recovery requires one connected panel')
+    names = []
+    for p in sorted((sysfs / 'class/input').glob('input*')):
+        if ((p / 'properties').is_file() and (p / 'name').is_file()
+                and int((p / 'properties').read_text().strip(), 16) & 2):
+            names.append((p / 'name').read_text().strip())
+    if names != ['iPad7,5 Touchscreen']:
+        raise RuntimeError('Unexpected touchscreen; no changes made')
+    return panels[0], names
+
+
+def configure(path, output, names, *, system=False):
+    """Preserve unrelated bindings and orientation; back up before atomic write."""
+    if path.is_symlink():
+        raise RuntimeError('Refusing a symlinked recovery config')
+    if system:
+        for item in (path, path.parent):
+            info = item.stat()
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise RuntimeError('Greeter configuration must be root-owned')
+    old = path.read_bytes()
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
+    root = ET.fromstring(old, parser=parser)
+    if root.tag != 'labwc_config':
+        raise RuntimeError('Unexpected compositor config')
+    for name in names:
+        touch = next((p for p in root.findall('touch')
+                      if p.get('deviceName') == name), None)
+        if touch is None:
+            touch = ET.SubElement(root, 'touch')
+        touch.attrib.update(deviceName=name, mapToOutput=output, mouseEmulation='no')
+        libinput = root.find('libinput')
+        if libinput is None:
+            libinput = ET.SubElement(root, 'libinput')
+        device = next((p for p in libinput.findall('device')
+                       if p.get('category') == name or p.get('name') == name), None)
+        if device is None:
+            device = ET.SubElement(libinput, 'device', category=name)
+        matrix = device.find('calibrationMatrix')
+        if matrix is None:
+            matrix = ET.SubElement(device, 'calibrationMatrix')
+        matrix.text = '1 0 0 0 1 0'
+    ET.indent(root, space='  ')
+    data = ET.tostring(root, encoding='UTF-8', xml_declaration=True) + b'\n'
+    if system:
+        STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+        backup = STATE / 'greeter-rc.before-recovery.xml'
+    else:
+        backup = path.with_name('rc.xml.before-hardware-recovery')
+    # Neither a root nor user backup may redirect writes through a symlink.
+    if backup.is_symlink():
+        raise RuntimeError('Refusing a symlinked recovery backup')
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
+        temp_name = Path(temp.name)
+        temp.write(data)
+    try:
+        backup.write_bytes(old)
+        backup.chmod(0o600)
+        temp_name.chmod(stat.S_IMODE(path.stat().st_mode))
+        temp_name.replace(path)
+    finally:
+        temp_name.unlink(missing_ok=True)
+
+
+def labwc_processes(uid):
+    result = []
+    for p in Path('/proc').glob('[0-9]*'):
+        try:
+            if p.stat().st_uid == uid and (p / 'exe').resolve() == Path('/usr/bin/labwc'):
+                result.append(int(p.name))
+        except (OSError, RuntimeError):
+            continue
+    return result
+
+
+def signal_process(pid, sig):
+    fd = os.pidfd_open(pid)
+    try:
+        signal.pidfd_send_signal(fd, sig)
+    finally:
+        os.close(fd)
+
+
+def recover():
+    if os.geteuid() != 0 or not supported():
+        raise RuntimeError('Recovery requires root on a supported J71b')
+    # Validate the exact controller before changing either desktop or hardware.
+    driver = Path('/sys/bus/spi/drivers/apple-z2')
+    device = Path('/sys/bus/spi/devices/spi0.0')
+    if (device / 'driver').resolve() != driver:
+        raise RuntimeError('Expected apple-z2 controller is not bound')
+    firmware = (device / 'of_node/firmware-name').read_bytes().rstrip(b'\0').decode()
+    if not firmware.startswith('apple/j71b-') or not (Path('/lib/firmware') / firmware).is_file():
+        raise RuntimeError('Expected J71b firmware is unavailable')
+    output, names = panel_and_touches()
+    session = run('loginctl', 'show-seat', 'seat0', '-p', 'ActiveSession', '--value')
+    if not session:
+        raise RuntimeError('No active local seat session')
+    uid = int(run('loginctl', 'show-session', session, '-p', 'User', '--value'))
+    greeter_uid = pwd.getpwnam('greeter').pw_uid
+    if uid != greeter_uid and uid < 1000:
+        raise RuntimeError('Unexpected active local user')
+    desktop_pids = labwc_processes(uid) if uid >= 1000 else []
+    if uid >= 1000 and len(desktop_pids) != 1:
+        raise RuntimeError('Expected one active desktop')
+    before_brightness = []
+    for p in Path('/sys/class/backlight').glob('*'):
+        maximum = int((p / 'max_brightness').read_text())
+        current = int((p / 'brightness').read_text())
+        before_brightness.append((p, current or max(1, maximum * 30 // 100)))
+    configure(GREETER_CONFIG, output, names, system=True)
+    if uid >= 1000:
+        account = pwd.getpwuid(uid)
+        # Mutable home files are handled with the owner's privileges, never root.
+        run('runuser', '-u', account.pw_name, '--', '/usr/bin/python3', SCRIPT,
+            'configure-user', output, json.dumps(names))
+        signal_process(desktop_pids[0], signal.SIGTERM)
+    deadline = time.monotonic() + 15
+    while not (pids := labwc_processes(greeter_uid)):
+        if time.monotonic() > deadline:
+            raise RuntimeError('Normal sign-in screen did not return')
+        time.sleep(.25)
+    if len(pids) != 1:
+        raise RuntimeError('Expected one greeter')
+    signal_process(pids[0], signal.SIGHUP)
+    unbound = False
+    try:
+        (driver / 'unbind').write_text('spi0.0')
+        unbound = True
+        time.sleep(1)
+        (driver / 'bind').write_text('spi0.0')
+        unbound = False
+        run('udevadm', 'settle', '--timeout=15', timeout=18)
+        if (device / 'driver').resolve() != driver:
+            raise RuntimeError('Touch controller did not bind')
+    finally:
+        if unbound and (device / 'driver').resolve() != driver:
+            (driver / 'bind').write_text('spi0.0')
+    for p, brightness in before_brightness:
+        (p / 'brightness').write_text(str(brightness))
+    print('Touch recovery completed; normal PIN sign-in is required.', flush=True)
+
+
+def key_state(fd):
+    bits = bytearray(96)
+    fcntl.ioctl(fd, 0x80604518, bits, True)  # EVIOCGKEY: modifiers/text are never logged.
+    return {k for k in (HOME, VOLUME_UP) if bits[k // 8] & (1 << (k % 8))}
+
+
+def gpio_device():
+    for p in sorted(Path('/sys/class/input').glob('event*/device/name')):
+        if p.read_text().strip() != 'gpio-keys':
+            continue
+        fd = os.open('/dev/input/' + p.parts[-3], os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISCHR(os.fstat(fd).st_mode):
+                raise RuntimeError('Expected an input character device')
+            bits = bytearray(96)
+            fcntl.ioctl(fd, 0x80604521, bits, True)  # EVIOCGBIT(EV_KEY)
+            if all(bits[k // 8] & (1 << (k % 8)) for k in (HOME, VOLUME_UP)):
+                return fd
+        except BaseException:
+            os.close(fd)
+            raise
+        os.close(fd)
+    raise RuntimeError('GPIO Home and Volume Up buttons not available')
+
+
+def watch():
+    if os.geteuid() != 0 or not supported():
+        raise RuntimeError('Recovery watcher requires root on J71b')
+    fd = gpio_device()
+    chord = Chord()
+    chord.resync(key_state(fd))
+    child, quiet_until, syncing = None, 0, False
+    print('Home + Volume Up recovery ready (hold 3 seconds).', flush=True)
+    try:
+        while True:
+            ready, _, _ = select.select([fd], [], [], .1)
+            if ready:
+                data = os.read(fd, EVENT.size * 64)
+                if not data:
+                    raise RuntimeError('GPIO device disconnected')
+                for offset in range(0, len(data), EVENT.size):
+                    _, _, kind, code, value = EVENT.unpack_from(data, offset)
+                    if kind == 0 and code == 3:  # SYN_DROPPED
+                        syncing = True
+                        chord.resync({HOME, VOLUME_UP})
+                    elif syncing and kind == 0 and code == 0:
+                        chord.resync(key_state(fd))
+                        syncing = False
+                    elif kind == 1 and not syncing:
+                        chord.feed(code, value, time.monotonic())
+            now = time.monotonic()
+            if child is not None and child.poll() is not None:
+                print('Recovery exit:', child.returncode, flush=True)
+                child, quiet_until = None, now + 1
+            if child is None and not syncing and chord.tick(now):
+                print('Physical recovery chord activated.', flush=True)
+                child = subprocess.Popen(['/usr/bin/timeout', '-k', '5', '60', SCRIPT, 'recover'])
+            mark(chord.holding() or child is not None or now < quiet_until)
+    finally:
+        mark(False)
+        os.close(fd)
+
+
+def main():
+    command = sys.argv[1] if len(sys.argv) > 1 else ''
+    if command in ('watch', 'recover'):
+        def interrupted(signum, frame):
+            raise InterruptedError('Recovery service stopped')
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGINT, interrupted)
+    if command == 'active':
+        return 0 if active() else 1
+    if command == 'supported':
+        return 0 if supported() else 1
+    if command == 'watch':
+        watch()
+    elif command == 'recover':
+        recover()
+    elif command == 'configure-user':
+        if os.geteuid() < 1000:
+            raise RuntimeError('User config must be written by its owner')
+        configure(Path(pwd.getpwuid(os.geteuid()).pw_dir) / '.config/labwc/rc.xml',
+                  sys.argv[2], json.loads(sys.argv[3]))
+    else:
+        raise RuntimeError('Expected watch, recover, active, supported or configure-user')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, ET.ParseError, subprocess.SubprocessError) as error:
+        print('Touch recovery:', error, file=sys.stderr, flush=True)
+        raise SystemExit(1)

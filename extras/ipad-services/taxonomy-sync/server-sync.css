@@ -1,0 +1,10 @@
+body[data-sync-loading]>:not(#cnm-sync-overlay){visibility:hidden}
+#cnm-sync-overlay{position:fixed;inset:0;z-index:10000;background:Canvas;color:CanvasText;display:flex;align-items:center;justify-content:center;gap:16px;padding:24px;flex-wrap:wrap}
+#cnm-sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #8886;font:14px/1.5 system-ui;background:Canvas;color:CanvasText}
+#cnm-sync-bar span{flex:1 1 220px}
+#cnm-sync-bar button,.cnm-account button{min-height:44px;padding:8px 14px;cursor:pointer}
+.cnm-account{max-width:620px;margin:32px auto;padding:20px;line-height:1.7}
+.cnm-account form{display:grid;gap:18px;margin:20px 0}
+.cnm-account label{display:grid;gap:6px}
+.cnm-account input,.cnm-account textarea{font:inherit;box-sizing:border-box;width:100%;padding:12px;min-height:44px}
+.cnm-account textarea{margin:14px 0;overflow-wrap:anywhere}

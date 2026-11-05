@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 3,
+  "minCindyVersion": "0.1.124",
+  "id": "wrong-notebook-cindy-bridge",
+  "name": "\u9519\u9898\u672c Cindy \u6865\u63a5",
+  "description": "\u5c06\u9519\u9898\u672c\u7684\u6587\u5b57\u548c\u56fe\u7247\u4ea4\u7ed9\u672c\u673a Cindy \u72ec\u7acb\u4efb\u52a1\uff0c\u901a\u8fc7\u73b0\u6709 iPad \u4e13\u7528 SSH \u901a\u9053\u8fd4\u56de\u7ed3\u679c\u3002Mac \u548c Cindy \u9700\u4fdd\u6301\u8fd0\u884c\u3002",
+  "whenToUse": "\u68c0\u67e5\u9519\u9898\u672c\u4e0e\u672c\u673a Cindy \u7684\u8fde\u63a5\u3001\u6d4b\u8bd5\u6587\u5b57\u6216\u56fe\u7247\u63a8\u7406\u3001\u5207\u6362\u9519\u9898\u672c\u7684 AI \u6765\u6e90\u65f6",
+  "version": "1.0.0",
+  "entry": "main.js",
+  "launch": "resident",
+  "icon": "assets/icon.png",
+  "command": "\u9519\u9898\u672c\u6865\u63a5",
+  "showTaskPreferences": true,
+  "agent": {
+    "tasks": true,
+    "hiddenTasks": true
+  },
+  "node": {
+    "entry": "node/entry.cjs",
+    "protocol": "json-rpc-stdio",
+    "lifecycle": "resident"
+  },
+  "tools": [
+    {"name":"public_endpoint","description":"将已授权的错题本桥接改为专用 HTTPS 通道，停止依赖 iPad 内网 SSH 转发。","parameters":{"type":"object","properties":{"baseUrl":{"type":"string"}},"required":["baseUrl"]}},
+    {"name":"select_model","description":"保存用户明确选定的模型目录 ID，执行前重新验证来源。","parameters":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}},
+    {"name":"list_models","description":"只读列出本机 Cindy 可用的完整任务模型路线，不读取凭据。","parameters":{"type":"object","properties":{}}},
+    {
+      "name":"choose_model",
+      "description":"打开 Cindy 原生模型选择器，为错题本选择并保存完整模型来源。",
+      "parameters":{"type":"object","properties":{}}
+    },
+    {
+      "name":"inspect_task",
+      "description":"Inspect only this plugin's own task and native run receipts, without message bodies.",
+      "parameters":{"type":"object","properties":{"taskId":{"type":"string"},"runId":{"type":"string"}},"required":["taskId","runId"]}
+    },
+    {
+      "name": "status",
+      "description": "\u67e5\u770b\u56de\u73af\u63a5\u53e3\u3001SSH \u8f6c\u53d1\u53ca\u4efb\u52a1\u80fd\u529b\uff0c\u4e0d\u8fd4\u56de\u5bc6\u94a5\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "configure",
+      "description": "\u914d\u7f6e\u7528\u6237\u6388\u6743\u7684 J71b iPad \u5e76\u542f\u52a8\u56de\u73af SSH \u8f6c\u53d1\uff0c\u6682\u4e0d\u4fee\u6539\u63d0\u4f9b\u5546\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ipadHost": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ipadHost"
+        ]
+      }
+    },
+    {
+      "name": "self_test",
+      "description": "\u63d0\u4ea4\u5408\u6210\u6587\u5b57\u6216\u56fe\u7247\u6d4b\u8bd5\uff0c\u4e0d\u5199\u9519\u9898\u672c\u6570\u636e\u3002\u56fe\u7247\u63a5\u6536 PNG base64\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image"
+            ]
+          },
+          "imageBase64": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      }
+    },
+    {
+      "name": "diagnostics",
+      "description": "\u67e5\u770b\u6700\u8fd1\u4efb\u52a1\u56de\u6267\u548c\u6a21\u578b\u4fe1\u606f\uff0c\u4e0d\u8fd4\u56de\u9898\u76ee\u6b63\u6587\u6216\u5bc6\u94a5\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "pair_notebook",
+      "description": "\u6587\u5b57\u548c\u56fe\u7247\u5b9e\u6d4b\u901a\u8fc7\u540e\uff0c\u5c06\u9519\u9898\u672c\u63a5\u5230 Cindy\uff0c\u4fdd\u7559\u539f\u914d\u7f6e\u4f9b\u56de\u9000\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "stop",
+      "description": "\u505c\u6b62\u6865\u63a5\u63a5\u53e3\u548c SSH \u901a\u9053\uff0c\u4e0d\u4fee\u6539 iPad \u6570\u636e\u3002",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}
